@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-server-tibet"
-version = "1.0.0"
+version = "1.0.2"
 description = "TIBET MCP Server - Transaction/Interaction-Based Evidence Trail. Trust & provenance for AI systems."
 readme = "README.md"
 license = "MIT"

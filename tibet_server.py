@@ -8,6 +8,9 @@ One love, one fAmIly 💙
 
 TIBET = Verzekering, niet verrekening.
 Doorlopende zekerheid dat data integer is en relaties kloppen.
+
+Time Vault = Tijdscapsules voor de toekomst.
+"Iedereen heeft een geheim, een wroeging, een ultieme wens, een nalatenschap, een verhaal."
 """
 
 import json
@@ -20,6 +23,23 @@ from typing import Any, Optional
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 from pydantic import BaseModel
+
+# Time Vault module
+try:
+    from tibet_vault import (
+        create_vault, heartbeat, check_and_unlock,
+        get_vault_content, list_vaults, get_vault_info
+    )
+    VAULT_AVAILABLE = True
+except ImportError:
+    VAULT_AVAILABLE = False
+
+# Kit Validator for LLM-based semantic validation
+try:
+    from kit_validator import validate_token_with_kit, check_kit_health
+    KIT_AVAILABLE = True
+except ImportError:
+    KIT_AVAILABLE = False
 
 # TIBET Secret (in production: from env)
 TIBET_SECRET = b"humotica_one_love_one_family_2024"
@@ -148,6 +168,80 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        ),
+        Tool(
+            name="tibet_validate_with_kit",
+            description="Use Kit (Qwen 32B on GPU) for semantic validation of a TIBET token. Checks consistency between ERIN, ERAAN, EROMHEEN, and ERACHTER.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "token_id": {"type": "string", "description": "The token ID to validate with Kit"}
+                },
+                "required": ["token_id"]
+            }
+        ),
+        # Time Vault tools
+        Tool(
+            name="tibet_vault_create",
+            description="Create a time-locked vault (tijdscapsule). Content is encrypted and only accessible when conditions are met.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Who creates this vault"},
+                    "content": {"type": "string", "description": "Secret content to lock away"},
+                    "public_note": {"type": "string", "description": "Public description (visible before unlock)"},
+                    "unlock_at": {"type": "string", "description": "ISO date when to unlock (e.g., 2030-01-01)"},
+                    "dead_man_switch_days": {"type": "integer", "description": "Auto-unlock if no heartbeat for X days"},
+                    "beneficiaries": {"type": "array", "items": {"type": "string"}, "description": "Who can access when unlocked"}
+                },
+                "required": ["owner", "content", "public_note"]
+            }
+        ),
+        Tool(
+            name="tibet_vault_heartbeat",
+            description="Send heartbeat to reset dead man's switch timer. Only vault owner can send.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "vault_id": {"type": "string", "description": "The vault ID"},
+                    "actor": {"type": "string", "description": "Who is sending heartbeat (must be owner)"}
+                },
+                "required": ["vault_id", "actor"]
+            }
+        ),
+        Tool(
+            name="tibet_vault_get",
+            description="Get vault content if unlocked and you are a beneficiary.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "vault_id": {"type": "string", "description": "The vault ID"},
+                    "actor": {"type": "string", "description": "Who is requesting access"}
+                },
+                "required": ["vault_id", "actor"]
+            }
+        ),
+        Tool(
+            name="tibet_vault_list",
+            description="List vaults, optionally filtered by owner.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "owner": {"type": "string", "description": "Filter by owner (optional)"}
+                },
+                "required": []
+            }
+        ),
+        Tool(
+            name="tibet_vault_info",
+            description="Get vault metadata (no content) - see status, time until unlock, etc.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "vault_id": {"type": "string", "description": "The vault ID"}
+                },
+                "required": ["vault_id"]
             }
         )
     ]
@@ -338,6 +432,100 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "message": f"State transition: {old_state} → {new_state}"
             }, indent=2)
         )]
+
+    elif name == "tibet_validate_with_kit":
+        token_id = arguments.get("token_id")
+
+        if not KIT_AVAILABLE:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "Kit validator not available"})
+            )]
+
+        if token_id not in tokens_db:
+            return [TextContent(
+                type="text",
+                text=json.dumps({"error": "Token not found"})
+            )]
+
+        token = tokens_db[token_id]
+
+        # Run LLM-based semantic validation
+        is_valid, confidence, analysis = validate_token_with_kit(token)
+
+        # Update trust based on validation
+        if is_valid and confidence > 0.8:
+            update_trust(token["actor"], 0.02)
+        elif not is_valid:
+            update_trust(token["actor"], -0.05)
+
+        return [TextContent(
+            type="text",
+            text=json.dumps({
+                "token_id": token_id,
+                "kit_validation": {
+                    "valid": is_valid,
+                    "confidence": confidence,
+                    "analysis": analysis
+                },
+                "actor": token["actor"],
+                "new_trust_score": calculate_trust(token["actor"]),
+                "message": f"Kit (Qwen 32B) semantic validation: {'PASSED' if is_valid else 'FAILED'}"
+            }, indent=2)
+        )]
+
+    # Time Vault tools
+    elif name == "tibet_vault_create":
+        if not VAULT_AVAILABLE:
+            return [TextContent(type="text", text=json.dumps({"error": "Vault module not available"}))]
+
+        unlock_at = None
+        if arguments.get("unlock_at"):
+            unlock_at = datetime.fromisoformat(arguments["unlock_at"])
+
+        result = create_vault(
+            owner=arguments.get("owner"),
+            content=arguments.get("content"),
+            public_note=arguments.get("public_note"),
+            unlock_at=unlock_at,
+            dead_man_switch_days=arguments.get("dead_man_switch_days"),
+            beneficiaries=arguments.get("beneficiaries")
+        )
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "tibet_vault_heartbeat":
+        if not VAULT_AVAILABLE:
+            return [TextContent(type="text", text=json.dumps({"error": "Vault module not available"}))]
+
+        result = heartbeat(
+            vault_id=arguments.get("vault_id"),
+            actor=arguments.get("actor")
+        )
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "tibet_vault_get":
+        if not VAULT_AVAILABLE:
+            return [TextContent(type="text", text=json.dumps({"error": "Vault module not available"}))]
+
+        result = get_vault_content(
+            vault_id=arguments.get("vault_id"),
+            actor=arguments.get("actor")
+        )
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "tibet_vault_list":
+        if not VAULT_AVAILABLE:
+            return [TextContent(type="text", text=json.dumps({"error": "Vault module not available"}))]
+
+        result = list_vaults(owner=arguments.get("owner"))
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
+
+    elif name == "tibet_vault_info":
+        if not VAULT_AVAILABLE:
+            return [TextContent(type="text", text=json.dumps({"error": "Vault module not available"}))]
+
+        result = get_vault_info(vault_id=arguments.get("vault_id"))
+        return [TextContent(type="text", text=json.dumps(result, indent=2))]
 
     return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
 

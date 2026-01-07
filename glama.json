@@ -4,7 +4,7 @@
     "jaspertvdm"
   ],
   "name": "TIBET",
-  "description": "Trust & Provenance tokens with ERIN/ERAAN/EROMHEEN/ERACHTER tracking",
+  "description": "Transaction/Interaction-Based Evidence Trail - Trust & provenance for AI systems",
   "repository": "https://github.com/jaspertvdm/mcp-tibet",
   "license": "MIT",
   "homepage": "https://humotica.com"

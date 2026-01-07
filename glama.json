@@ -2,5 +2,10 @@
   "$schema": "https://glama.ai/mcp/schemas/server.json",
   "maintainers": [
     "jaspertvdm"
-  ]
+  ],
+  "name": "TIBET",
+  "description": "Trust & Provenance tokens with ERIN/ERAAN/EROMHEEN/ERACHTER tracking",
+  "repository": "https://github.com/jaspertvdm/mcp-tibet",
+  "license": "MIT",
+  "homepage": "https://humotica.com"
 }

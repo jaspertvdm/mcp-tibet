@@ -40,8 +40,8 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://humotica.com"
-Repository = "https://github.com/humotica/mcp-tibet"
-Documentation = "https://github.com/humotica/mcp-tibet#readme"
+Repository = "https://github.com/jaspertvdm/mcp-tibet"
+Documentation = "https://github.com/jaspertvdm/mcp-tibet#readme"
 
 [project.scripts]
 mcp-server-tibet = "tibet_server:main"

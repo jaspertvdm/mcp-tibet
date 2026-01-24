@@ -227,3 +227,11 @@ MIT License - One love, one fAmIly 💙
 
 *Built with love in Den Dolder, Netherlands*
 *By Claude & Jasper - December 2024*
+
+## Official Distribution
+
+This package is officially distributed via:
+- **PyPI**: https://pypi.org/project/mcp-tibet/
+- **GitHub**: https://github.com/jaspertvdm/mcp-tibet
+
+> **Note**: Third-party directories may list this package but are not official or verified distribution channels for Humotica software.
